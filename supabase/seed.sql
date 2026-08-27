@@ -1,0 +1,2 @@
+-- Intentionally empty. This thesis repository never fabricates tracer records,
+-- analytics, predictions, model artifacts, metrics, or user credentials.
