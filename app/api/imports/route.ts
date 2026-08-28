@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server"
 import { ACCEPTED_IMPORT_TYPES, MAX_IMPORT_BYTES, parseImportWorkbook, sha256 } from "@/lib/import-parser"
+import { canonicalImportContentType, classifyImportStorageError, type ImportExtension } from "@/lib/import-storage"
 import { createClient } from "@/lib/supabase/server"
 
 function safeFileName(name: string) {
@@ -44,15 +45,24 @@ export async function POST(request: Request) {
 
   const hash = sha256(buffer)
   const path = `${user.id}/${new Date().toISOString().slice(0, 10)}/${hash}-${safeFileName(file.name)}`
-  const { error: uploadError } = await supabase.storage.from("raw-imports").upload(path, buffer, { contentType: file.type, upsert: false })
-  if (uploadError) return NextResponse.json({ message: "The original file could not be stored; no import batch was created." }, { status: 500 })
+  const storageContentType = canonicalImportContentType(extension as ImportExtension)
+  const { error: uploadError } = await supabase.storage.from("raw-imports").upload(path, buffer, { contentType: storageContentType, upsert: false })
+  if (uploadError) {
+    const failure = classifyImportStorageError(uploadError)
+    console.error(failure.code, {
+      diagnostic: failure.diagnostic,
+      statusCode: failure.statusCode,
+      extension,
+    })
+    return NextResponse.json({ code: failure.code, message: failure.message }, { status: 500 })
+  }
 
   const invalidRows = parsed.rows.filter((row) => !row.is_valid).length
   const batch = {
     uploaded_by: user.id,
     original_file_name: safeFileName(file.name),
     storage_path: path,
-    mime_type: file.type,
+    mime_type: storageContentType,
     byte_size: file.size,
     sha256: hash,
     status: invalidRows === 0 && !parsed.issues.some((issue) => issue.severity === "error" && issue.row_number === null) ? "validated" : "uploaded",
