@@ -105,11 +105,12 @@ h1 { color: var(--navy-950); font-size: clamp(38px, 5vw, 62px); line-height: 1.0
 .chart-legend li { display: grid; grid-template-columns: 9px minmax(0, 1fr) auto; align-items: center; gap: 8px; color: var(--slate-700); font-size: 12px; }
 .legend-dot { width: 9px; height: 9px; border-radius: 50%; }
 .chart-legend strong { color: var(--navy-950); }
-.source-bars { display: grid; gap: 16px; margin-top: 24px; }
-.source-row > div:first-child { display: flex; justify-content: space-between; gap: 16px; color: var(--slate-700); font-size: 12px; margin-bottom: 7px; }
-.source-row strong { color: var(--navy-950); }
 .progress-track { height: 8px; overflow: hidden; background: var(--slate-100); border-radius: 999px; }
 .progress-track span { display: block; height: 100%; min-width: 0; background: var(--blue-700); border-radius: inherit; }
+.dataset-scope { display: grid; padding: 18px; margin-top: 22px; background: var(--blue-100); border: 1px solid #c9dfef; border-radius: 6px; }
+.dataset-scope strong { color: var(--navy-950); font-size: 30px; }
+.dataset-scope span { color: var(--slate-700); font-size: 13px; font-weight: 700; margin-top: 2px; }
+.dataset-scope small { color: var(--blue-700); font-size: 11px; margin-top: 8px; }
 .rating-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin-top: 28px; }
 .rating-card { padding: 16px; background: var(--slate-50); border: 1px solid var(--slate-200); border-radius: 6px; }
 .rating-card > span { display: block; color: var(--slate-600); font-size: 11px; font-weight: 750; }
