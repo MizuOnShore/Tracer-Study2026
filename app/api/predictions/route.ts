@@ -23,7 +23,7 @@ export async function POST(request: Request) {
 
   const [{ data: model }, { data: record }] = await Promise.all([
     supabase.from("model_registry").select("id,kind,version,status").eq("kind", parsed.data.kind).eq("status", "active").maybeSingle(),
-    supabase.from("respondent_records").select("id,gender,age,graduation_year,strand,certification,current_status,subject_relevance,preparedness,canonical_data").eq("id", parsed.data.respondent_id).maybeSingle(),
+    supabase.from("respondent_records").select("id,gender,age,graduation_year,strand,certification,current_status,subject_relevance,preparedness,canonical_data").eq("id", parsed.data.respondent_id).eq("source", "import").maybeSingle(),
   ])
   if (!model) return NextResponse.json({ code: "MODEL_NOT_AVAILABLE", message: `No active ${parsed.data.kind} model is registered. No prediction was generated.` }, { status: 503 })
   if (!record) return NextResponse.json({ code: "RESPONDENT_NOT_FOUND", message: "The respondent record is unavailable." }, { status: 404 })

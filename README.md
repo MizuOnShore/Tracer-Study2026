@@ -1,6 +1,6 @@
 # DJIHS Web-based Tracer Analysis and Decision Support System
 
-This repository implements the application described in the manuscript **“A Multi-Level Ensemble Learning Framework for Predicting K-12 Graduate Employability Pathways Using Tracer Study Data.”** It collects and validates alumni tracer responses, stages imported tracer files, exposes aggregate analytical views, and serves only explicitly activated static ML models.
+This repository implements the application described in the manuscript **“A Multi-Level Ensemble Learning Framework for Predicting K-12 Graduate Employability Pathways Using Tracer Study Data.”** In the revised import-only scope, authorized school users upload and validate tracer CSV/XLSX files, the system exposes aggregate analytical views, and production serves only explicitly activated static ML models. Public survey collection is disabled.
 
 The repository contains **no tracer dataset, sample graduates, trained artifacts, model scores, default users, email addresses, or passwords**. Until real infrastructure and evidence exist, the UI reports states such as `DATA_NOT_AVAILABLE`, `POWER_BI_NOT_CONFIGURED`, and `MODEL_NOT_AVAILABLE`.
 
@@ -20,7 +20,7 @@ Supabase intentionally substitutes for the manuscript’s proposed Azure SQL and
 
 1. Create a Supabase project.
 2. Apply [`supabase/migrations/202608270001_initial_schema.sql`](supabase/migrations/202608270001_initial_schema.sql) with the Supabase CLI or SQL editor.
-3. Copy `.env.example` to `.env.local` and set the Supabase project URL, anon key, server-only service-role key, and `SURVEY_RATE_LIMIT_SECRET` (any 32+ random characters). Never expose the service-role key through a `NEXT_PUBLIC_` variable.
+3. Copy `.env.example` to `.env.local` and set the Supabase project URL, anon key, and server-only service-role key. Never expose the service-role key through a `NEXT_PUBLIC_` variable.
 4. Create the first administrator with environment variables rather than committed credentials:
 
    ```powershell
@@ -56,7 +56,6 @@ Deploy the Next.js application to Vercel or another Node-compatible host. Set th
 - `NEXT_PUBLIC_SUPABASE_URL`
 - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
 - `SUPABASE_SERVICE_ROLE_KEY` (server-only)
-- `SURVEY_RATE_LIMIT_SECRET` (server-only, at least 32 random bytes; the public survey form is disabled without it)
 - `ML_SERVICE_URL` and `ML_SERVICE_TOKEN` once the inference service is running
 - `NEXT_PUBLIC_POWER_BI_REPORT_URL` when the real aggregate report is approved
 
@@ -71,11 +70,9 @@ The Python service is a separate deployment unit. Do not package `ml/service.py`
 - Configure SMTP if password recovery will be enabled.
 - Run `scripts/bootstrap-admin.mjs` once.
 
-`submit_tracer_survey` sets `search_path = public, extensions` because Supabase installs `pgcrypto` in the `extensions` schema; without it the RPC's `digest()` call fails on every submission.
+The public survey page redirects to the landing page and `POST /api/surveys` returns `410 SURVEY_COLLECTION_DISABLED`. Historical survey tables remain in the original migration for non-destructive compatibility but are not an active application data source.
 
-The public survey endpoint uses a server-only service-role call and a database-backed HMAC rate limit (20 accepted attempts per 10-minute network window); the public anon key cannot invoke the submission RPC directly. Infrastructure-level WAF throttling remains recommended as defense in depth.
-
-The graduation-year range `2018`–`2025` is intentionally fixed to the approved questionnaire and manuscript scope. Expanding it requires a versioned survey/schema change and a documented manuscript amendment—not a date-based automatic bump.
+The graduation-year range `2018`–`2025` is intentionally fixed to the approved tracer instrument and manuscript scope. Expanding it requires a versioned import/schema change and a documented manuscript amendment—not a date-based automatic bump.
 
 ## Data states and workflow
 
@@ -88,7 +85,7 @@ The intended progression is explicit:
 5. `MODEL_EVALUATED_NOT_ACTIVE` — offline training created held-out metrics and immutable artifacts.
 6. `MODEL_ACTIVE` — a researcher/admin explicitly activated the evaluated registry version.
 
-Adding survey or import records never invokes the training pipeline.
+Committing an import never invokes the training pipeline. The exact committed private file becomes eligible for a separate, explicit offline training command.
 
 ## Import contract
 
@@ -100,14 +97,19 @@ Branch columns are required when their status applies. The parser accepts CSV/XL
 
 ## Static model development
 
-Create a Python environment and install `ml/requirements.txt`. Then run:
+Create a Python environment and install `ml/requirements.txt`. Use the batch ID displayed after commit (or in the dashboard import-batch table) so training downloads and hash-verifies the exact original private file:
 
 ```powershell
-$env:PYTHONPATH="ml"
-python ml/train.py validated-tracer.csv --version 2026-08-27.1 --output ml/artifacts
+npm run train:import -- --batch-id <committed-batch-uuid> --version 2026-08-28.1
 ```
 
-The first run without `--k` writes candidate-k SSE diagnostics and exits with `K_SELECTION_REQUIRED`. Review the elbow evidence and rerun with an intentional value, for example `--k 4`. The pipeline then:
+The first run without `--k` writes candidate-k SSE diagnostics and stops at `K_SELECTION_REQUIRED`. Review the elbow evidence and rerun with an intentional value:
+
+```powershell
+npm run train:import -- --batch-id <committed-batch-uuid> --version 2026-08-28.1 --k 4
+```
+
+The wrapper refuses uncommitted batches, downloads the source from `raw-imports`, verifies its bytes against `import_batches.sha256`, and deletes the temporary local copy after training. The pipeline then:
 
 - removes duplicate/invalid rows and normalizes categories;
 - holds the test set away from K-Means fitting;

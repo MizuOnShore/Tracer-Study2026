@@ -6,6 +6,7 @@
     "build": "next build",
     "dev": "next dev",
     "lint": "eslint .",
+    "train:import": "node --env-file=.env.local scripts/train-import-batch.mjs",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "start": "next start"

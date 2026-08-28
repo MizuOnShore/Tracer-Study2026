@@ -11,7 +11,7 @@ export async function GET(request: Request) {
   const year = url.searchParams.get("year")
   const strand = url.searchParams.get("strand")
   const status = url.searchParams.get("status")
-  let query = supabase.from("analytics_by_batch_strand_status").select("graduation_year,strand,current_status,respondent_count")
+  let query = supabase.from("analytics_import_by_batch_strand_status").select("graduation_year,strand,current_status,respondent_count")
   if (year) query = query.eq("graduation_year", Number(year))
   if (strand) query = query.eq("strand", strand)
   if (status) query = query.eq("current_status", status)

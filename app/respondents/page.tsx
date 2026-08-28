@@ -12,7 +12,7 @@ export default async function RespondentsPage({ searchParams }: { searchParams: 
   const profile = await requireProfile()
   const filters = await searchParams
   const supabase = await createClient()
-  let query = supabase.from("respondent_records").select("id,full_name,email,graduation_year,strand,current_status,source,created_at", { count: "exact" })
+  let query = supabase.from("respondent_records").select("id,full_name,email,graduation_year,strand,current_status,source,created_at", { count: "exact" }).eq("source", "import")
   const search = (filters.q ?? "").trim().replace(/[%_]/g, "")
   if (search) query = query.or(`full_name.ilike.%${search}%,email.ilike.%${search}%`)
   if (filters.year) query = query.eq("graduation_year", Number(filters.year))

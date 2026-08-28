@@ -55,7 +55,7 @@ export default async function DashboardPage() {
         </div>
         <div className="header-actions">
           <Link className="button" href="/imports">Import CSV</Link>
-          <Link className="button secondary" href="/analytics">All-source analytics</Link>
+          <Link className="button secondary" href="/analytics">Detailed import analytics</Link>
         </div>
       </header>
 
@@ -84,7 +84,7 @@ export default async function DashboardPage() {
               <section className="panel">
                 <div className="section-heading">
                   <div><h2>Imported outcomes by graduation year</h2><p>Survey responses are excluded. Counts reconcile with the import-only charts above.</p></div>
-                  <Link className="button secondary small" href="/analytics">Open all-source analytics</Link>
+                  <Link className="button secondary small" href="/analytics">Open detailed analytics</Link>
                 </div>
                 <div className="table-wrap">
                   <table>
@@ -108,7 +108,7 @@ export default async function DashboardPage() {
       <section className="panel">
         <h2>Recent CSV/XLSX import batches</h2>
         <p>Only batches marked committed contribute records to the dashboard above.</p>
-        {batches?.length ? <div className="table-wrap"><table><thead><tr><th>File</th><th>Rows</th><th>Status</th><th>Created</th></tr></thead><tbody>{batches.map((batch) => <tr key={String(batch.id)}><td>{String(batch.original_file_name)}</td><td>{Number(batch.total_rows)}</td><td><span className={batch.status === "committed" ? "badge success" : "badge warning"}>{String(batch.status)}</span></td><td>{new Date(String(batch.created_at)).toLocaleString("en-PH")}</td></tr>)}</tbody></table></div> : <p>No import batches exist.</p>}
+        {batches?.length ? <div className="table-wrap"><table><thead><tr><th>File</th><th>Training batch ID</th><th>Rows</th><th>Status</th><th>Created</th></tr></thead><tbody>{batches.map((batch) => <tr key={String(batch.id)}><td>{String(batch.original_file_name)}</td><td><code>{String(batch.id)}</code></td><td>{Number(batch.total_rows)}</td><td><span className={batch.status === "committed" ? "badge success" : "badge warning"}>{String(batch.status)}</span></td><td>{new Date(String(batch.created_at)).toLocaleString("en-PH")}</td></tr>)}</tbody></table></div> : <p>No import batches exist.</p>}
       </section>
     </AppShell>
   )

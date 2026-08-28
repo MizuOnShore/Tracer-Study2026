@@ -9,7 +9,6 @@ export function InstitutionalHeader() {
         <span><strong>DJIHS Tracer System</strong><small>Decision Support and Graduate Outcomes</small></span>
       </Link>
       <nav aria-label="Public navigation">
-        <Link href="/survey">Alumni survey</Link>
         <Link className="button secondary small" href="/login">Authorized user login</Link>
       </nav>
     </header>

@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto"
 import { Readable } from "node:stream"
 import ExcelJS from "exceljs"
-import { GENDERS, GRADUATION_YEARS, STRANDS } from "@/lib/survey-schema"
+import { GENDERS, GRADUATION_YEARS, STRANDS } from "@/lib/tracer-import-schema"
 
 export const MAX_IMPORT_BYTES = 10 * 1024 * 1024
 export const ACCEPTED_IMPORT_TYPES = [

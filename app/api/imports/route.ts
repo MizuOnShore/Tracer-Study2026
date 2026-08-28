@@ -31,6 +31,43 @@ export async function POST(request: Request) {
     return NextResponse.json({ code, message: code === "EMPTY_FILE" ? "The file contains no records." : "The file could not be parsed." }, { status: 422 })
   }
 
+  const hash = sha256(buffer)
+  const { data: existingBatch, error: existingBatchError } = await supabase
+    .from("import_batches")
+    .select("id,status,total_rows,valid_rows,invalid_rows")
+    .eq("uploaded_by", user.id)
+    .eq("sha256", hash)
+    .maybeSingle()
+  if (existingBatchError) {
+    return NextResponse.json({ code: "IMPORT_LOOKUP_FAILED", message: "Existing imports could not be checked." }, { status: 500 })
+  }
+  if (existingBatch?.status === "committed") {
+    return NextResponse.json(
+      { code: "IMPORT_ALREADY_COMMITTED", message: "This exact file has already been committed. Its records are already included in the dashboard." },
+      { status: 409 },
+    )
+  }
+  if (existingBatch) {
+    const batchId = String(existingBatch.id)
+    const [{ data: stagedRows, error: stagedRowsError }, { data: storedIssues, error: storedIssuesError }] = await Promise.all([
+      supabase.from("import_staged_rows").select("row_number,is_valid,normalized_data").eq("import_batch_id", batchId).order("row_number").limit(20),
+      supabase.from("import_validation_issues").select("row_number,column_name,severity,code,message").eq("import_batch_id", batchId).order("row_number", { nullsFirst: true }).limit(200),
+    ])
+    if (stagedRowsError || storedIssuesError) {
+      return NextResponse.json({ code: "IMPORT_RESUME_FAILED", message: "The previous upload exists, but its validation preview could not be restored." }, { status: 500 })
+    }
+    return NextResponse.json({
+      batch_id: batchId,
+      status: existingBatch.status,
+      total_rows: Number(existingBatch.total_rows),
+      valid_rows: Number(existingBatch.valid_rows),
+      invalid_rows: Number(existingBatch.invalid_rows),
+      issues: storedIssues ?? [],
+      preview: (stagedRows ?? []).map((row) => ({ row_number: row.row_number, is_valid: row.is_valid, data: row.normalized_data })),
+      resumed: true,
+    })
+  }
+
   const fingerprintList = parsed.rows.map((row) => row.record_fingerprint)
   const existing = new Set<string>()
   for (let index = 0; index < fingerprintList.length; index += 100) {
@@ -43,7 +80,6 @@ export async function POST(request: Request) {
     parsed.issues.push({ row_number: row.row_number, column_name: null, severity: "error", code: "DUPLICATE_EXISTING_RECORD", message: "This graduate already exists in the database.", raw_value: null })
   }
 
-  const hash = sha256(buffer)
   const path = `${user.id}/${new Date().toISOString().slice(0, 10)}/${hash}-${safeFileName(file.name)}`
   const storageContentType = canonicalImportContentType(extension as ImportExtension)
   const { error: uploadError } = await supabase.storage.from("raw-imports").upload(path, buffer, { contentType: storageContentType, upsert: false })

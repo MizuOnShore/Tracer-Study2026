@@ -24,8 +24,9 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   if (!parsed.success) return NextResponse.json({ message: "One or more corrected fields are invalid.", issues: parsed.error.flatten() }, { status: 422 })
   const { id } = await params
   const fingerprint = createHash("sha256").update(`${parsed.data.email}|${parsed.data.full_name.toLowerCase()}|${parsed.data.graduation_year}`).digest("hex")
-  const { error } = await supabase.from("respondent_records").update({ ...parsed.data, record_fingerprint: fingerprint }).eq("id", id)
+  const { data: updated, error } = await supabase.from("respondent_records").update({ ...parsed.data, record_fingerprint: fingerprint }).eq("id", id).eq("source", "import").select("id").maybeSingle()
   if (error) return NextResponse.json({ message: error.code === "23505" ? "The correction would duplicate an existing graduate." : "The record could not be updated." }, { status: error.code === "23505" ? 409 : 500 })
+  if (!updated) return NextResponse.json({ message: "The imported respondent record was not found." }, { status: 404 })
   await supabase.from("audit_logs").insert({ actor_id: user.id, action: "respondent.updated", entity_type: "respondent_record", entity_id: id, metadata: { changed_fields: Object.keys(parsed.data) } })
   return NextResponse.json({ status: "updated" })
 }
