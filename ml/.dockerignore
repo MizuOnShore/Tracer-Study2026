@@ -1,0 +1,29 @@
+# Virtual environments
+.venv/
+.venv-*/
+venv/
+
+# Python caches
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Local model outputs and training data (synced from Supabase at runtime)
+artifacts/
+*.joblib
+*.metadata.json
+*.csv
+
+# Secrets and local env
+.env
+.env.*
+!.env.example
+
+# Tests are not needed in the runtime image
+tests/
+
+# Editor / OS noise
+.DS_Store
+*.swp

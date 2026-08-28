@@ -1,0 +1,25 @@
+# Render Blueprint for the DJIHS static model inference service.
+# The Next.js web app is hosted on Vercel and is not deployed here.
+#
+# Deploy: render.com -> New -> Blueprint -> connect this repo.
+# Render will prompt for the three secret values (sync: false) below.
+
+services:
+  - type: web
+    name: djihs-ml
+    runtime: docker
+    plan: free               # $0. Sleeps after 15 min idle (~1 min cold start). Change to "starter" for always-on.
+    region: singapore        # closest Render region to the Philippines
+    dockerfilePath: ./ml/Dockerfile
+    dockerContext: ./ml
+    healthCheckPath: /health
+    autoDeploy: true         # redeploy on every push to the default branch
+    envVars:
+      - key: NEXT_PUBLIC_SUPABASE_URL
+        sync: false          # prompted at deploy time; use https://<ref>.supabase.co
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false          # Supabase -> Project Settings -> API -> service_role key
+      - key: ML_SERVICE_TOKEN
+        sync: false          # same value you set as ML_SERVICE_TOKEN in Vercel
+      - key: ARTIFACT_DIR
+        value: /tmp/artifacts

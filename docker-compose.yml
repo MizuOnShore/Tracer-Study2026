@@ -1,0 +1,18 @@
+# Local stack for the DJIHS static model inference service.
+# The Next.js web app deploys to Vercel and is not built here.
+#
+#   cp ml/.env.example ml/.env   # then fill in the Supabase values
+#   docker compose up --build
+#
+# The service is then reachable at http://127.0.0.1:8000 — point the web
+# app's ML_SERVICE_URL at that address for local end-to-end testing.
+
+services:
+  ml:
+    build: ./ml
+    image: djihs-ml:local
+    container_name: djihs-ml
+    env_file: ./ml/.env
+    ports:
+      - "8000:8000"
+    restart: unless-stopped

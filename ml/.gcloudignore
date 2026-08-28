@@ -1,0 +1,18 @@
+# Keep the Cloud Build upload context small.
+.git/
+.venv/
+.venv-*/
+venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+artifacts/
+*.joblib
+*.metadata.json
+*.csv
+.env
+.env.*
+!.env.example
+tests/
