@@ -121,13 +121,13 @@ After deploy, from any machine:
 curl https://<service-url>/health
 # {"service":"available","models":{},"missing":["pathway","neet"]}
 
-# Token check (should be 401 without, 422 with a bad body):
-curl -X POST https://<service-url>/predict/pathway
+# Token check (should be 401 without a bearer token):
+curl -X POST https://<service-url>/predict/batch
 ```
 
-In the web app, open **Predictions** for a respondent. Before a model is active
-you should see `MODEL_NOT_AVAILABLE`, not a connection error — that confirms
-`ML_SERVICE_URL` and the token are wired correctly.
+In the web app, open **Batch Predictions**. Before both models are active,
+`MODEL_NOT_AVAILABLE` prevents execution. Once both models are active, run a
+validated batch to verify `ML_SERVICE_URL` and the server-only token together.
 
 ## Redeploy after activating a model
 

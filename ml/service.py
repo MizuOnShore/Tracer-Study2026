@@ -48,6 +48,21 @@ class PredictionRequest(BaseModel):
     record: dict[str, Any]
 
 
+class BatchRecord(BaseModel):
+    source_row: int = Field(gt=1)
+    record: dict[str, Any]
+
+
+class ExpectedModelVersions(BaseModel):
+    pathway: str = Field(min_length=1, max_length=100)
+    neet: str = Field(min_length=1, max_length=100)
+
+
+class BatchPredictionRequest(BaseModel):
+    expected_model_versions: ExpectedModelVersions
+    records: list[BatchRecord] = Field(min_length=1, max_length=2000)
+
+
 class ArtifactState:
     def __init__(self) -> None:
         self.models: dict[str, tuple[dict[str, Any], dict[str, Any]]] = {}
@@ -66,7 +81,9 @@ app = FastAPI(title="DJIHS Static Model Inference Service", version="1.0.0")
 
 
 def authorize(authorization: str | None = Header(default=None)) -> None:
-    if SERVICE_TOKEN and authorization != f"Bearer {SERVICE_TOKEN}":
+    if not SERVICE_TOKEN:
+        raise HTTPException(status_code=503, detail="Service token is not configured")
+    if authorization != f"Bearer {SERVICE_TOKEN}":
         raise HTTPException(status_code=401, detail="Invalid service token")
 
 
@@ -95,7 +112,11 @@ def health() -> dict[str, Any]:
 @app.post("/predict/pathway", dependencies=[Depends(authorize)])
 def predict_pathway(request: PredictionRequest) -> dict[str, Any]:
     bundle, metadata = get_model("pathway", request.expected_model_version)
-    frame = record_to_frame(request.record, bundle["features"])
+    return run_pathway(bundle, metadata, request.record)
+
+
+def run_pathway(bundle: dict[str, Any], metadata: dict[str, Any], record: dict[str, Any]) -> dict[str, Any]:
+    frame = record_to_frame(record, bundle["features"])
     transformed = bundle["preprocessor"].transform(frame)
     classes = np.asarray(bundle["classes"])
     probability_parts = []
@@ -123,7 +144,11 @@ def predict_pathway(request: PredictionRequest) -> dict[str, Any]:
 @app.post("/predict/neet", dependencies=[Depends(authorize)])
 def predict_neet(request: PredictionRequest) -> dict[str, Any]:
     bundle, _ = get_model("neet", request.expected_model_version)
-    frame = record_to_frame(request.record, bundle["features"])
+    return run_neet(bundle, request.record)
+
+
+def run_neet(bundle: dict[str, Any], record: dict[str, Any]) -> dict[str, Any]:
+    frame = record_to_frame(record, bundle["features"])
     probability = float(bundle["model"].predict_proba(frame)[0, 1])
     is_neet = probability >= float(bundle["threshold"])
     transformed = bundle["model"].named_steps["preprocess"].transform(frame)[0]
@@ -147,4 +172,27 @@ def predict_neet(request: PredictionRequest) -> dict[str, Any]:
         "class_probabilities": {"Non-NEET": 1.0 - probability, "NEET": probability},
         "threshold": float(bundle["threshold"]),
         "factor_associations": factors,
+    }
+
+
+@app.post("/predict/batch", dependencies=[Depends(authorize)])
+def predict_batch(request: BatchPredictionRequest) -> dict[str, Any]:
+    """Run both finalized models without changing either individual contract."""
+    pathway_bundle, pathway_metadata = get_model(
+        "pathway", request.expected_model_versions.pathway
+    )
+    neet_bundle, _ = get_model("neet", request.expected_model_versions.neet)
+    predictions = []
+    for item in request.records:
+        predictions.append({
+            "source_row": item.source_row,
+            "pathway": run_pathway(pathway_bundle, pathway_metadata, item.record),
+            "neet": run_neet(neet_bundle, item.record),
+        })
+    return {
+        "model_versions": {
+            "pathway": pathway_bundle["version"],
+            "neet": neet_bundle["version"],
+        },
+        "predictions": predictions,
     }

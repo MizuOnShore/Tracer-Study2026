@@ -7,8 +7,8 @@ const links = [
   { href: "/imports", label: "Import & validation", icon: FileUp },
   { href: "/respondents", label: "Respondent records", icon: ClipboardList },
   { href: "/analytics", label: "Analytics", icon: BarChart3 },
-  { href: "/predictions", label: "Predictions", icon: Sparkles },
-  { href: "/insights", label: "Discussion & insights", icon: Lightbulb },
+  { href: "/predictions", label: "Batch Predictions", icon: Sparkles },
+  { href: "/insights", label: "Discussion & Insights", icon: Lightbulb },
 ]
 
 export function AppShell({ profile, children }: { profile: Profile; children: React.ReactNode }) {

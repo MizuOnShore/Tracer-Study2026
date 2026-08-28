@@ -1,0 +1,39 @@
+"use client"
+
+import { useMemo, useState } from "react"
+import { Bar, BarChart, CartesianGrid, Cell, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts"
+import { confidenceBand, groupPredictionRows, percentage, summarizePredictionRows, type BatchDisplayRow } from "@/lib/prediction-runs"
+
+const COLORS = ["#1d5d91", "#176b4d", "#a06418", "#6a4c93", "#a23b45", "#3b6978", "#795548"]
+
+export function BatchResultsDashboard({ rows }: { rows: BatchDisplayRow[] }) {
+  const summary = useMemo(() => summarizePredictionRows(rows), [rows])
+  const outcomes = useMemo(() => Object.entries(summary.outcomeCounts).sort((a, b) => b[1] - a[1]), [summary])
+  const chartData = outcomes.map(([label, count], index) => ({ label, count, percentage: percentage(count, summary.processed), fill: COLORS[index % COLORS.length] }))
+  const [dimension, setDimension] = useState<"graduationYear" | "strand" | "gender" | "certification" | "preparedness">("strand")
+  const breakdown = useMemo(() => groupPredictionRows(rows, dimension), [rows, dimension])
+  const [query, setQuery] = useState("")
+  const [outcome, setOutcome] = useState("")
+  const [strand, setStrand] = useState("")
+  const [year, setYear] = useState("")
+  const [confidence, setConfidence] = useState("")
+  const strands = [...new Set(rows.map((row) => row.strand))].sort()
+  const years = [...new Set(rows.map((row) => String(row.graduationYear)))].sort()
+  const filtered = rows.filter((row) => (!query || row.sourceIdentifier.toLowerCase().includes(query.toLowerCase())) && (!outcome || row.predictedOutcome === outcome) && (!strand || row.strand === strand) && (!year || String(row.graduationYear) === year) && (!confidence || confidenceBand(row.confidence) === confidence))
+
+  return <>
+    <section className="prediction-kpi-grid" aria-label="Predicted outcome summary">
+      <article className="prediction-kpi"><span>Total Processed</span><strong>{summary.processed.toLocaleString("en-PH")}</strong><small>100.0%</small></article>
+      {outcomes.map(([label, count]) => <article className="prediction-kpi" key={label}><span>Predicted {label}</span><strong>{count.toLocaleString("en-PH")}</strong><small>{percentage(count, summary.processed).toFixed(1)}%</small></article>)}
+      <article className="prediction-kpi neet"><span>Predicted NEET</span><strong>{summary.predictedNeet.toLocaleString("en-PH")}</strong><small>{percentage(summary.predictedNeet, summary.processed).toFixed(1)}%</small></article>
+    </section>
+
+    <section className="panel"><h2>Predicted Graduate Outcomes</h2><p>Pathway labels are the reviewed interpretations returned by the active data-driven clustering model.</p><div className="prediction-bar-chart" role="img" aria-label="Horizontal bar chart showing predicted pathway counts and percentages"><ResponsiveContainer width="100%" height="100%"><BarChart data={chartData} layout="vertical" margin={{ top: 8, right: 42, left: 28, bottom: 0 }}><CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#dde3eb" /><XAxis type="number" allowDecimals={false} /><YAxis type="category" dataKey="label" width={150} tick={{ fontSize: 11 }} /><Tooltip formatter={(value) => [`${Number(value).toLocaleString("en-PH")} records`, "Predicted"]} /><Bar dataKey="count" radius={[0, 4, 4, 0]} isAnimationActive={false}>{chartData.map((item) => <Cell key={item.label} fill={item.fill} />)}</Bar></BarChart></ResponsiveContainer></div><ul className="outcome-values">{chartData.map((item) => <li key={item.label}><span className="legend-dot" style={{ background: item.fill }} /><strong>{item.label}</strong><span>{item.count} · {item.percentage.toFixed(1)}%</span></li>)}</ul></section>
+
+    <section className="panel"><h2>Prediction Confidence</h2><p>Pathway confidence bands use the returned maximum class probability: High ≥ 80%, Medium 60–79.9%, and Low &lt; 60%.</p><div className="confidence-grid"><div><span>High confidence</span><strong>{summary.confidenceCounts.High}</strong><small>{percentage(summary.confidenceCounts.High, summary.processed).toFixed(1)}%</small></div><div><span>Medium confidence</span><strong>{summary.confidenceCounts.Medium}</strong><small>{percentage(summary.confidenceCounts.Medium, summary.processed).toFixed(1)}%</small></div><div><span>Low confidence</span><strong>{summary.confidenceCounts.Low}</strong><small>{percentage(summary.confidenceCounts.Low, summary.processed).toFixed(1)}%</small></div></div><div className="notice warning">Low-confidence predictions should be interpreted cautiously and should not be treated as confirmed outcomes.</div></section>
+
+    <section className="panel"><div className="section-heading"><div><h2>Group Breakdowns</h2><p>Percentages are calculated within each group using fields present in this prediction run.</p></div><label className="inline-filter">Analyze by<select value={dimension} onChange={(event) => setDimension(event.target.value as typeof dimension)}><option value="strand">Strand</option><option value="graduationYear">Graduation year</option><option value="gender">Gender</option><option value="certification">Certification</option><option value="preparedness">Preparedness</option></select></label></div><div className="table-wrap"><table><thead><tr><th>Group</th><th>Records</th>{outcomes.map(([label]) => <th key={label}>{label}</th>)}<th>Predicted NEET</th></tr></thead><tbody>{breakdown.map((group) => <tr key={group.group}><td><strong>{group.group}</strong></td><td>{group.count}</td>{outcomes.map(([label]) => <td key={label}>{percentage(group.outcomes[label] ?? 0, group.count).toFixed(1)}%</td>)}<td>{percentage(group.predictedNeet, group.count).toFixed(1)}%</td></tr>)}</tbody></table></div></section>
+
+    <section className="panel"><h2>Individual Result Drill-down</h2><p>Only anonymized source identifiers and analytical grouping fields are displayed. Predictions remain secondary to the batch summary.</p><div className="result-filters"><input aria-label="Search record" placeholder="Search record identifier" value={query} onChange={(event) => setQuery(event.target.value)} /><select aria-label="Filter predicted outcome" value={outcome} onChange={(event) => setOutcome(event.target.value)}><option value="">All predicted outcomes</option>{outcomes.map(([label]) => <option key={label}>{label}</option>)}</select><select aria-label="Filter strand" value={strand} onChange={(event) => setStrand(event.target.value)}><option value="">All strands</option>{strands.map((item) => <option key={item}>{item}</option>)}</select><select aria-label="Filter graduation year" value={year} onChange={(event) => setYear(event.target.value)}><option value="">All years</option>{years.map((item) => <option key={item}>{item}</option>)}</select><select aria-label="Filter confidence" value={confidence} onChange={(event) => setConfidence(event.target.value)}><option value="">All confidence bands</option><option>High</option><option>Medium</option><option>Low</option></select></div><p className="filtered-count">Showing {filtered.length.toLocaleString("en-PH")} of {rows.length.toLocaleString("en-PH")} processed records</p><div className="table-wrap"><table><thead><tr><th>Record</th><th>Graduation Year</th><th>Strand</th><th>Predicted Pathway</th><th>Pathway Confidence</th><th>NEET Prediction</th><th>NEET Probability</th></tr></thead><tbody>{filtered.map((row) => <tr key={row.sourceRow}><td>{row.sourceIdentifier}</td><td>{row.graduationYear}</td><td>{row.strand}</td><td><span className="badge">Predicted</span> {row.predictedOutcome}</td><td>{(row.confidence * 100).toFixed(1)}% · {confidenceBand(row.confidence)}</td><td><span className={`badge ${row.neetPredicted ? "error" : "success"}`}>{row.neetPredicted ? "Predicted NEET" : "Predicted Non-NEET"}</span></td><td>{(row.neetProbability * 100).toFixed(1)}%</td></tr>)}</tbody></table></div></section>
+  </>
+}

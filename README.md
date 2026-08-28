@@ -9,7 +9,7 @@ The repository contains **no tracer dataset, sample graduates, trained artifacts
 - Frontend/server: Next.js 16 App Router, React 19, strict TypeScript
 - Authentication: Supabase Auth with server-side session refresh and role/status checks
 - Structured storage: Supabase PostgreSQL with migrations, constraints, RPC transactions, RLS, and analytical views
-- Object storage: private Supabase Storage buckets `raw-imports` and `model-artifacts`
+- Object storage: private Supabase Storage buckets `raw-imports`, `prediction-inputs`, and `model-artifacts`
 - Analytics: aggregate SQL views prepared as Power BI sources; accessible table fallback in Next.js
 - ML: separately deployable Python FastAPI service (containerized, `ml/Dockerfile`); scikit-learn, XGBoost, and CatBoost
 - Artifacts: immutable joblib bundles plus JSON metadata and SHA-256 verification
@@ -19,7 +19,7 @@ Supabase intentionally substitutes for the manuscript’s proposed Azure SQL and
 ## Local setup
 
 1. Create a Supabase project.
-2. Apply [`supabase/migrations/202608270001_initial_schema.sql`](supabase/migrations/202608270001_initial_schema.sql) with the Supabase CLI or SQL editor.
+2. Apply every file in [`supabase/migrations`](supabase/migrations) in filename order with `supabase db push` or the SQL editor.
 3. Copy `.env.example` to `.env.local` and set the Supabase project URL, anon key, and server-only service-role key. Never expose the service-role key through a `NEXT_PUBLIC_` variable.
 4. Create the first administrator with environment variables rather than committed credentials:
 
@@ -65,7 +65,7 @@ The Python service is a separate deployment unit. Do not package `ml/service.py`
 
 ### After applying the migration
 
-- Verify the private `raw-imports` and `model-artifacts` bucket policies exist.
+- Verify the private `raw-imports`, `prediction-inputs`, and `model-artifacts` bucket policies exist.
 - Set the Auth Site URL and redirect allow-list to the production domain.
 - Configure SMTP if password recovery will be enabled.
 - Run `scripts/bootstrap-admin.mjs` once.
@@ -86,6 +86,10 @@ The intended progression is explicit:
 6. `MODEL_ACTIVE` — a researcher/admin explicitly activated the evaluated registry version.
 
 Committing an import never invokes the training pipeline. The exact committed private file becomes eligible for a separate, explicit offline training command.
+
+Batch prediction is a separate inference-only workflow. A CSV/XLSX uploaded under `/predictions` is validated into a `prediction_run`, stored in the private `prediction-inputs` bucket, and never inserted into `respondent_records`. Only valid rows are sent through the server-side `/api/predictions/[runId]/execute` proxy to the Render service. The active pathway and NEET models run as a batch, the complete result is saved atomically, and Discussion & Insights reads only a selected completed run. The actual-data Dashboard remains unchanged.
+
+After deploying a service version that includes the batch workflow, redeploy/restart Render so `POST /predict/batch` is available. `ML_SERVICE_TOKEN` is required on both hosts and is never returned to the browser.
 
 ## Import contract
 
