@@ -11,5 +11,8 @@ export default defineConfig([
     "ThesisProject-TracerStudy-main-main/**",
     "tmp/**",
     "ml/artifacts/**",
+    ".venv*/**",
+    "**/.pytest_cache/**",
+    "**/__pycache__/**",
   ]),
 ])

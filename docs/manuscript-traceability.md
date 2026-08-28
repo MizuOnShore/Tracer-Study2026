@@ -52,6 +52,7 @@ Repository status below means implemented in source, not deployed. Live Supabase
 | AUD-01 | Activity history | Material actions retained | Audit table, RLS, event writes, admin page | migration/routes/audit page | Implemented | Medium | Establish retention period |
 | SEC-01 | Secrets | Server-only service key/token | `.env.example`, server modules only | config/admin/prediction code | Implemented | Critical | Rotate any previously exposed secrets |
 | SEC-02 | PII minimization | Aggregate public/reporting access | No public reads; aggregate views exclude PII | RLS/views | Implemented | Critical | Privacy impact assessment |
+| SEC-03 | Public survey abuse control | No direct anon RPC; bounded submissions | Server-only service-role RPC, 64 KiB body cap, honeypot, HMAC network-window throttle | survey route; `survey_rate_limits`; `submit_tracer_survey` grants | Implemented | High | Add hosting WAF rules and verify forwarded-IP headers |
 | QUAL-01 | Strict build quality | No ignored TS; lint/tests/build | Build bypass removed; scripts and tests present | `next.config.mjs`; `package.json`; `tests` | Implemented | High | See actual CI/build results |
 
 ## Source discrepancies requiring manuscript decisions

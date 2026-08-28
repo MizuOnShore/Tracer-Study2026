@@ -8,6 +8,12 @@ export const isSupabaseConfigured = Boolean(
   publicConfig.supabaseUrl && publicConfig.supabaseAnonKey,
 )
 
+export const isSurveySubmissionConfigured = Boolean(
+  isSupabaseConfigured
+  && process.env.SUPABASE_SERVICE_ROLE_KEY?.trim()
+  && (process.env.SURVEY_RATE_LIMIT_SECRET?.trim().length ?? 0) >= 32,
+)
+
 export function requireServerSupabaseConfig() {
   if (!isSupabaseConfigured) {
     throw new Error("SUPABASE_NOT_CONFIGURED")
@@ -24,4 +30,12 @@ export function requireServiceRoleKey() {
     throw new Error("SUPABASE_SERVICE_ROLE_NOT_CONFIGURED")
   }
   return serviceRoleKey
+}
+
+export function requireSurveyRateLimitSecret() {
+  const secret = process.env.SURVEY_RATE_LIMIT_SECRET?.trim()
+  if (!secret || secret.length < 32) {
+    throw new Error("SURVEY_RATE_LIMIT_SECRET_NOT_CONFIGURED")
+  }
+  return secret
 }

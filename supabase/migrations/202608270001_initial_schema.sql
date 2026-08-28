@@ -109,6 +109,15 @@ create table public.survey_responses (
   check ((neet_reasons is null and actively_seeking is null) or (cardinality(neet_reasons) > 0 and actively_seeking is not null))
 );
 
+-- Contains only one-way HMAC digests, never raw network addresses. This table
+-- is private and is used solely by the server-only survey RPC.
+create table public.survey_rate_limits (
+  ip_hash text primary key check (ip_hash ~ '^[a-f0-9]{64}$'),
+  window_started_at timestamptz not null default now(),
+  attempt_count smallint not null default 1 check (attempt_count > 0),
+  updated_at timestamptz not null default now()
+);
+
 create table public.import_validation_issues (
   id bigint generated always as identity primary key,
   import_batch_id uuid not null references public.import_batches(id) on delete cascade,
@@ -252,6 +261,7 @@ alter table public.profiles enable row level security;
 alter table public.import_batches enable row level security;
 alter table public.respondent_records enable row level security;
 alter table public.survey_responses enable row level security;
+alter table public.survey_rate_limits enable row level security;
 alter table public.import_validation_issues enable row level security;
 alter table public.import_staged_rows enable row level security;
 alter table public.model_registry enable row level security;
@@ -310,10 +320,13 @@ using (public.is_admin());
 create policy authorized_create_audit on public.audit_logs for insert to authenticated
 with check (public.is_authorized_user() and (actor_id = auth.uid() or actor_id is null));
 
--- Public submission is intentionally only available through this validated transaction.
-create or replace function public.submit_tracer_survey(payload jsonb)
+-- Public submission is intentionally available only to the server-side route,
+-- which calls this transaction with the service role. The anon key cannot call it.
+-- search_path includes `extensions` so pgcrypto's digest() resolves under the
+-- fixed search_path that SECURITY DEFINER requires.
+create or replace function public.submit_tracer_survey(payload jsonb, submission_ip_hash text)
 returns uuid
-language plpgsql security definer set search_path = public
+language plpgsql security definer set search_path = public, extensions
 as $$
 declare
   record_id uuid;
@@ -321,7 +334,32 @@ declare
   status_value public.post_shs_status;
   duplicate_hash text;
   request_uuid uuid;
+  current_attempts smallint;
 begin
+  if submission_ip_hash is null or submission_ip_hash !~ '^[a-f0-9]{64}$' then
+    raise exception using errcode = '22023', message = 'A valid submission throttle key is required.';
+  end if;
+
+  insert into public.survey_rate_limits(ip_hash, window_started_at, attempt_count, updated_at)
+  values (submission_ip_hash, now(), 1, now())
+  on conflict (ip_hash) do update set
+    window_started_at = case
+      when public.survey_rate_limits.window_started_at < now() - interval '10 minutes' then now()
+      else public.survey_rate_limits.window_started_at
+    end,
+    attempt_count = case
+      when public.survey_rate_limits.window_started_at < now() - interval '10 minutes' then 1
+      else public.survey_rate_limits.attempt_count + 1
+    end,
+    updated_at = now()
+  returning attempt_count into current_attempts;
+
+  -- A moderate ceiling limits automated flooding without immediately blocking
+  -- a supervised alumni session behind one shared school network address.
+  if current_attempts > 20 then
+    raise exception using errcode = 'P0001', message = 'SURVEY_RATE_LIMIT_EXCEEDED';
+  end if;
+
   if coalesce((payload->>'consent_given')::boolean, false) is not true then
     raise exception using errcode = '22023', message = 'Consent is required before submission.';
   end if;
@@ -400,8 +438,8 @@ exception
 end;
 $$;
 
-revoke all on function public.submit_tracer_survey(jsonb) from public;
-grant execute on function public.submit_tracer_survey(jsonb) to anon, authenticated, service_role;
+revoke all on function public.submit_tracer_survey(jsonb, text) from public;
+grant execute on function public.submit_tracer_survey(jsonb, text) to service_role;
 
 create or replace function public.commit_import_batch(target_batch_id uuid)
 returns integer

@@ -1,7 +1,7 @@
 import type { Metadata } from "next"
 import { InstitutionalHeader } from "@/components/institutional-header"
 import { SurveyForm } from "@/components/survey-form"
-import { isSupabaseConfigured } from "@/lib/config"
+import { isSurveySubmissionConfigured } from "@/lib/config"
 
 export const metadata: Metadata = { title: "SHS graduate survey" }
 
@@ -18,7 +18,7 @@ export default function SurveyPage() {
           </header>
           <section className="survey-card">
             <p className="privacy-note">Participation is voluntary. Your response will be kept confidential, used for the stated research and school decision-support purposes, and reported in aggregate. Required fields are marked with an asterisk.</p>
-            <SurveyForm configured={isSupabaseConfigured} />
+            <SurveyForm configured={isSurveySubmissionConfigured} />
           </section>
         </div>
       </main>
