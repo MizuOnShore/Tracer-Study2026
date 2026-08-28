@@ -11,7 +11,7 @@ The repository contains **no tracer dataset, sample graduates, trained artifacts
 - Structured storage: Supabase PostgreSQL with migrations, constraints, RPC transactions, RLS, and analytical views
 - Object storage: private Supabase Storage buckets `raw-imports` and `model-artifacts`
 - Analytics: aggregate SQL views prepared as Power BI sources; accessible table fallback in Next.js
-- ML: separately deployable Python FastAPI service; scikit-learn, XGBoost, and CatBoost
+- ML: separately deployable Python FastAPI service (containerized, `ml/Dockerfile`); scikit-learn, XGBoost, and CatBoost
 - Artifacts: immutable joblib bundles plus JSON metadata and SHA-256 verification
 
 Supabase intentionally substitutes for the manuscript’s proposed Azure SQL and Azure Blob components. This architectural change must be acknowledged in the final manuscript.
@@ -20,7 +20,7 @@ Supabase intentionally substitutes for the manuscript’s proposed Azure SQL and
 
 1. Create a Supabase project.
 2. Apply [`supabase/migrations/202608270001_initial_schema.sql`](supabase/migrations/202608270001_initial_schema.sql) with the Supabase CLI or SQL editor.
-3. Copy `.env.example` to `.env.local` and set the Supabase project URL, anon key, and server-only service-role key. Never expose the service-role key through a `NEXT_PUBLIC_` variable.
+3. Copy `.env.example` to `.env.local` and set the Supabase project URL, anon key, server-only service-role key, and `SURVEY_RATE_LIMIT_SECRET` (any 32+ random characters). Never expose the service-role key through a `NEXT_PUBLIC_` variable.
 4. Create the first administrator with environment variables rather than committed credentials:
 
    ```powershell
@@ -39,20 +39,41 @@ Supabase intentionally substitutes for the manuscript’s proposed Azure SQL and
 
 There is no public account registration. Administrators create and deactivate authorized accounts in `/admin`.
 
-## Production deployment
+## Deployment
 
-Deploy the Next.js application to Vercel or another Node-compatible host. Configure these values in the host environment rather than copying `.env.local`:
+### Live deployment
+
+| Component | Host | Address |
+| --- | --- | --- |
+| Web application (Next.js) | Vercel, auto-deploys from `main` | `https://tracer-study2026.vercel.app` |
+| Inference service (FastAPI) | Render — Docker, [`ml/Dockerfile`](ml/Dockerfile) | `https://tracer-study2026.onrender.com` |
+| Database, Auth, Storage | Supabase project `ylfxhiioplecaifurujd` | — |
+
+### Web host
+
+Deploy the Next.js application to Vercel or another Node-compatible host. Set these in the host environment rather than copying `.env.local`:
 
 - `NEXT_PUBLIC_SUPABASE_URL`
 - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
 - `SUPABASE_SERVICE_ROLE_KEY` (server-only)
-- `SURVEY_RATE_LIMIT_SECRET` (server-only, at least 32 random bytes)
-- `ML_SERVICE_URL` and `ML_SERVICE_TOKEN` when prediction service is available
+- `SURVEY_RATE_LIMIT_SECRET` (server-only, at least 32 random bytes; the public survey form is disabled without it)
+- `ML_SERVICE_URL` and `ML_SERVICE_TOKEN` once the inference service is running
 - `NEXT_PUBLIC_POWER_BI_REPORT_URL` when the real aggregate report is approved
 
-The Python service is a separate deployment unit. Do not package `ml/service.py`, scikit-learn, XGBoost, CatBoost, and model artifacts into the Vercel Next.js application. Deploy it to a persistent Python service such as Render, Railway, Fly.io, Azure App Service, or a managed VM, restrict its network/token access, and then set the two `ML_SERVICE_*` values in the web host.
+### Inference service
 
-After the Supabase migration, verify private bucket policies, set the Auth Site URL/redirect allow-list to the production domain, configure SMTP if password recovery will be enabled, and run `scripts/bootstrap-admin.mjs` once. The public survey endpoint uses a server-only service-role call and a database-backed HMAC rate limit (20 accepted attempts per 10-minute network window); the public anon key cannot invoke the submission RPC directly. Infrastructure-level WAF throttling remains recommended as defense in depth.
+The Python service is a separate deployment unit. Do not package `ml/service.py`, scikit-learn, XGBoost, CatBoost, or model artifacts into the Vercel application. It ships as a container ([`ml/Dockerfile`](ml/Dockerfile)) with a Render blueprint ([`render.yaml`](render.yaml)). See [`docs/ml-deployment.md`](docs/ml-deployment.md) for local Docker Compose plus Render, Cloud Run, Railway, and Azure Container Apps instructions, the required environment variables, and how the web app connects. `ML_SERVICE_TOKEN` must be identical in the inference host and the web host. The service downloads active artifacts only at startup — restart it after activating a new model version.
+
+### After applying the migration
+
+- Verify the private `raw-imports` and `model-artifacts` bucket policies exist.
+- Set the Auth Site URL and redirect allow-list to the production domain.
+- Configure SMTP if password recovery will be enabled.
+- Run `scripts/bootstrap-admin.mjs` once.
+
+`submit_tracer_survey` sets `search_path = public, extensions` because Supabase installs `pgcrypto` in the `extensions` schema; without it the RPC's `digest()` call fails on every submission.
+
+The public survey endpoint uses a server-only service-role call and a database-backed HMAC rate limit (20 accepted attempts per 10-minute network window); the public anon key cannot invoke the submission RPC directly. Infrastructure-level WAF throttling remains recommended as defense in depth.
 
 The graduation-year range `2018`–`2025` is intentionally fixed to the approved questionnaire and manuscript scope. Expanding it requires a versioned survey/schema change and a documented manuscript amendment—not a date-based automatic bump.
 
@@ -109,11 +130,7 @@ $env:PYTHONPATH="ml"
 python ml/register_model.py ml/artifacts/pathway-2026-08-27.1.metadata.json
 ```
 
-Use `--activate` only after reviewing the held-out evidence and approving cluster interpretations. Activation is transactional in PostgreSQL. The FastAPI service downloads only active private artifacts, verifies their SHA-256 metadata, and rejects a web request whose registry version differs from the loaded version.
-
-## Deployment
-
-The web application deploys to Vercel. The FastAPI inference service is containerized ([`ml/Dockerfile`](ml/Dockerfile)) and deployed separately — it cannot run inside a Vercel function. See [`docs/ml-deployment.md`](docs/ml-deployment.md) for local Docker Compose and hosted options (Cloud Run, Render, Railway, Azure Container Apps), the required environment variables, and how the web app connects through `ML_SERVICE_URL` / `ML_SERVICE_TOKEN`.
+Use `--activate` only after reviewing the held-out evidence and approving cluster interpretations. Activation is transactional in PostgreSQL. The FastAPI service downloads only active private artifacts, verifies their SHA-256 metadata, and rejects a web request whose registry version differs from the loaded version. Restart the inference service after activation so it picks up the new artifacts.
 
 ## Verification
 
